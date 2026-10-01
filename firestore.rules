@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function chatPath(chatId) { return /databases/$(database)/documents/chats/$(chatId); }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /chats/{chatId} {
+      allow get: if signedIn() && (resource == null || request.auth.uid in resource.data.participants);
+      allow list: if signedIn() && request.auth.uid in resource.data.participants;
+
+      allow create: if signedIn()
+        && request.auth.uid in request.resource.data.participants
+        && request.resource.data.type in ['direct', 'group', 'channel']
+        && (request.resource.data.type == 'direct'
+            ? (request.resource.data.participants.size() == 2
+               && chatId.split('_').hasAll(request.resource.data.participants))
+            : request.auth.uid in request.resource.data.admins);
+
+      allow update: if signedIn() && request.auth.uid in resource.data.participants && (
+        // anyone in the chat: last-message preview
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['lastMessage', 'lastSenderId', 'lastSenderName', 'lastAt'])
+        // admins of groups/channels: rename, add/remove members, promote
+        || (resource.data.get('type', 'direct') != 'direct'
+            && request.auth.uid in resource.data.get('admins', []))
+        // anyone: leave the chat
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants', 'admins'])
+            && request.resource.data.participants.toSet()
+               == resource.data.participants.toSet().difference([request.auth.uid].toSet())
+            && request.resource.data.admins.toSet().difference(resource.data.admins.toSet()).size() == 0)
+      );
+
+      match /messages/{mid} {
+        // direct chats: the uids are in the chat id, so reading works before the chat doc exists
+        allow read: if signedIn() && (
+          request.auth.uid in chatId.split('_')
+          || (exists(chatPath(chatId)) && request.auth.uid in get(chatPath(chatId)).data.participants));
+
+        // getAfter: the chat doc is written in the same batch as the first message
+        allow create: if signedIn()
+          && request.resource.data.senderId == request.auth.uid
+          && request.auth.uid in getAfter(chatPath(chatId)).data.participants
+          && (getAfter(chatPath(chatId)).data.get('type', 'direct') != 'channel'
+              || request.auth.uid in getAfter(chatPath(chatId)).data.admins);
+
+        allow delete: if signedIn() && resource.data.senderId == request.auth.uid;
+        allow update: if false;
+      }
+    }
+
+    match /calls/{callId} {
+      allow create: if signedIn()
+        && request.resource.data.callerId == request.auth.uid
+        && request.auth.uid in request.resource.data.participants
+        && request.resource.data.status == 'ringing';
+      allow get, list, update: if signedIn()
+        && (request.auth.uid in resource.data.participants || request.auth.uid == resource.data.calleeId);
+
+      match /{side}/{cid} {
+        allow read, write: if signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/calls/$(callId)).data.participants;
+      }
+    }
+  }
+}

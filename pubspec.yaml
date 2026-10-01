@@ -1,0 +1,38 @@
+name: apex_chat
+description: ApEx Chat - Professional communication platform by the ApEx Team. Developed by Mahmoud Abdelrahman.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.3.0
+  cloud_firestore: ^6.10.0
+  flutter_webrtc: ">=0.12.0 <2.0.0"
+  image_picker: ^1.2.3
+  intl: ^0.20.2
+  shared_preferences: ^2.5.3
+  url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.3
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  assets:
+    - assets/logo.png
+  uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#07464D"
+  adaptive_icon_foreground: "assets/icon.png"
